@@ -1,4 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import spawn from 'cross-spawn'; // runs npm's claude.cmd / codex.cmd shims on Windows, with safe argument quoting
 import { EventEmitter } from 'node:events';
 import { WorktreeManager, type Worktree } from './worktree-manager.js';
 
@@ -79,7 +80,7 @@ export class Orchestrator extends EventEmitter {
     this.procs.set(wt.branch, child);
     this.emit('event', { type: 'start', worktree: wt } satisfies AgentEvent);
     for (const stream of ['stdout', 'stderr'] as const) {
-      child[stream].on('data', (b: Buffer) =>
+      child[stream]!.on('data', (b: Buffer) =>
         this.emit('event', { type: 'data', worktree: wt, stream, chunk: b.toString() } satisfies AgentEvent));
     }
     const finish = (code: number | null, err?: Error) => {

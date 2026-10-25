@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import spawn from 'cross-spawn';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,8 +15,8 @@ export function runAgentText(registry: Registry, agent: string, prompt: string, 
   return new Promise((resolve) => {
     const child = spawn(spec.cmd, spec.args(prompt), { cwd });
     let out = '';
-    child.stdout.on('data', (b: Buffer) => { out += b.toString(); });
-    child.stderr.on('data', (b: Buffer) => { out += b.toString(); });
+    child.stdout!.on('data', (b: Buffer) => { out += b.toString(); });
+    child.stderr!.on('data', (b: Buffer) => { out += b.toString(); });
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
     const done = () => { clearTimeout(timer); fs.rmSync(cwd, { recursive: true, force: true }); resolve(out.trim()); };
     child.on('error', (e) => { out += e.message; done(); });

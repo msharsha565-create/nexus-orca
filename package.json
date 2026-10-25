@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Run multiple AI coding agents side-by-side in isolated git worktrees",
   "type": "module",
-  "bin": { "orca": "dist/cli/orca-cli.js" },
+  "bin": {
+    "orca": "dist/cli/orca-cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/main/server.ts",
@@ -11,8 +13,12 @@
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "ws": "^8.18.0" },
+  "dependencies": {
+    "cross-spawn": "^7.0.6",
+    "ws": "^8.18.0"
+  },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.12",
     "tsx": "^4.19.0",
