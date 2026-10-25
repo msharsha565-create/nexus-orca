@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>NexusOrca Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* Layout: control bar on top, one column per agent worktree, review + merge below each. */
+:root{
+  --bg:#f3f5f7;--panel:#ffffff;--ink:#16202b;--muted:#5d6b7a;--line:#d5dce3;
+  --accent:#0b7a75;--add-bg:#d6f1df;--add-fg:#0f5c2e;--del-bg:#fadcdc;--del-fg:#8c2020;
+  --warn:#9a5b00;--ok:#0f7a3d;--term:#0f1a22;--term-ink:#b9e0d8;
+  --display:'Bricolage Grotesque',system-ui,sans-serif;--body:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1319;--panel:#131d26;--ink:#e3ebf0;--muted:#8a9aa8;--line:#243340;
+  --accent:#3fc7bd;--add-bg:#12392a;--add-fg:#8fe0aa;--del-bg:#3d1b1d;--del-fg:#f0a0a0;
+  --warn:#e5b057;--ok:#6fdc9a;--term:#080e13;--term-ink:#a6d9cf;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1319;--panel:#131d26;--ink:#e3ebf0;--muted:#8a9aa8;--line:#243340;
+  --accent:#3fc7bd;--add-bg:#12392a;--add-fg:#8fe0aa;--del-bg:#3d1b1d;--del-fg:#f0a0a0;
+  --warn:#e5b057;--ok:#6fdc9a;--term:#080e13;--term-ink:#a6d9cf;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font:700 26px/1.1 var(--display);margin:0}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}
+.bar input{flex:1 1 260px;min-width:0}
+input,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+button{cursor:pointer;font-weight:500}
+button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:12px var(--mono);padding:4px 8px;border-radius:999px;border:1px solid var(--line);cursor:pointer;background:var(--bg)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-width:0}
+.card.win{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok)}
+.hd{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.hd b{font:700 15px var(--display)}.hd code{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.state{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 7px;border-radius:4px;border:1px solid currentColor}
+.running{color:var(--warn)}.done{color:var(--ok)}.merged{color:var(--accent)}
+.term{margin:0;background:var(--term);color:var(--term-ink);font:12px/1.5 var(--mono);padding:10px 12px;height:170px;overflow:auto;white-space:pre-wrap}
+.stat{font:12px var(--mono);padding:8px 12px;display:flex;gap:12px;color:var(--muted);border-top:1px solid var(--line)}
+.stat .a{color:var(--add-fg)}.stat .d{color:var(--del-fg)}
+.diff{font:12px/1.5 var(--mono);overflow-x:auto;border-top:1px solid var(--line)}
+.ln{display:block;padding:0 12px;white-space:pre;cursor:pointer;min-width:max-content}
+.ln:hover{outline:1px dashed var(--accent);outline-offset:-1px}
+.ln.a{background:var(--add-bg);color:var(--add-fg)}.ln.d{background:var(--del-bg);color:var(--del-fg)}.ln.h{color:var(--muted)}
+.note{font:12px var(--mono);margin:0;padding:6px 12px;background:var(--bg);border-left:3px solid var(--accent)}
+.rev{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--line)}.rev input{flex:1;min-width:0}
+.act{display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line);align-items:center}
+.act .q{font:12px var(--mono);color:var(--muted);margin-left:auto}
+.log{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12px/1.6 var(--mono);color:var(--muted)}
+.log b{color:var(--ink)}
+.tag{font:12px var(--mono);color:var(--muted)}
+</style>
+
+</head><body>
+<main>
+  <header>
+    <h1>NexusOrca</h1>
+    <p class="sub">Simulated demo. One prompt goes to several coding agents, each in its own git worktree. Compare the diffs, leave line comments, merge the winner. Nothing here runs real agents; the repo does.</p>
+  </header>
+
+  <section class="bar" aria-label="Fan out">
+    <input id="prompt" value="add input validation to the signup form" aria-label="Prompt">
+    <div class="chips" id="chips"></div>
+    <button class="primary" id="go">Fan out</button>
+    <button id="reset">Reset</button>
+  </section>
+
+  <section class="grid" id="grid" aria-live="polite"></section>
+  <section class="log" id="log"><b>$</b> orca list --repo .<br>No worktrees yet. Press Fan out.</section>
+</main>
+
+<script>
+const AGENTS={
+ 'claude-code':{cmd:'claude -p',ms:420,lines:['reading src/signup.ts','found form handler at line 12','adding zod schema for email + password','updating tests','running pnpm test … 14 passed'],
+  diff:['@@ src/signup.ts','-export function submit(data) {','+export function submit(raw: unknown) {','+  const data = SignupSchema.parse(raw);','   return api.post("/signup", data);'],add:31,del:4,secs:6.2},
+ 'codex':{cmd:'codex exec',ms:300,lines:['plan: validate in handler','editing src/signup.ts','no test changes','done'],
+  diff:['@@ src/signup.ts','   export function submit(data) {','+  if (!data.email.includes("@")) throw new Error("bad email");','   return api.post("/signup", data);'],add:6,del:0,secs:3.8},
+ 'opencode':{cmd:'opencode run',ms:520,lines:['scanning repo','creating src/validate.ts','wiring validate() into submit','adding 3 test cases','pnpm test … 1 failed'],
+  diff:['@@ src/validate.ts (new)','+export const validate = (d: any) => {','+  if (!d?.email) throw new Error("email");','+};','@@ src/signup.ts','+  validate(data);'],add:48,del:2,secs:8.9},
+ 'aider':{cmd:'aider --message',ms:480,lines:['repo-map built','editing src/signup.ts','committed a1b2c3d','done'],
+  diff:['@@ src/signup.ts','+import { isEmail } from "./util";','+  if (!isEmail(data.email)) return fail("email");'],add:12,del:1,secs:5.1},
+ 'goose':{cmd:'goose run -t',ms:560,lines:['loading recipe','editing src/signup.ts','done'],
+  diff:['@@ src/signup.ts','+  assert(data.password.length >= 8);'],add:4,del:0,secs:4.4}
+};
+const $=s=>document.querySelector(s),slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
+let sel=new Set(['claude-code','codex','opencode']),timers=[],merged=null;
+const chips=$('#chips');
+Object.keys(AGENTS).forEach(k=>{const b=document.createElement('button');b.className='chip';b.textContent=k;
+  b.setAttribute('aria-pressed',sel.has(k));b.onclick=()=>{sel.has(k)?sel.delete(k):sel.add(k);b.setAttribute('aria-pressed',sel.has(k))};chips.append(b)});
+const log=t=>$('#log').insertAdjacentHTML('beforeend','<br>'+t);
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function reset(){timers.forEach(clearTimeout);timers=[];merged=null;$('#grid').replaceChildren();
+  $('#log').innerHTML='<b>$</b> orca list --repo .<br>No worktrees yet. Press Fan out.';$('#go').disabled=false}
+$('#reset').onclick=reset;
+$('#go').onclick=()=>{
+  if(!sel.size)return;reset();$('#go').disabled=true;
+  const task=slug($('#prompt').value)||'task';
+  $('#log').innerHTML=`<b>$</b> orca fanout --repo . --agents ${[...sel].join(',')} --prompt "${$('#prompt').value.replace(/[<>&]/g,'')}"`;
+  [...sel].forEach(name=>{
+    const a=AGENTS[name],branch=`orca/${name}-${task}`;
+    log(`git worktree add -b ${branch} .orca-worktrees/${name}-${task}`);
+    const card=el('article','card'),hd=el('div','hd'),t=el('div');
+    t.append(el('b','',name),document.createTextNode(' '),el('code','',branch));
+    const st=el('span','state running','running');hd.append(t,st);
+    const term=el('pre','term','$ '+a.cmd+' "'+$('#prompt').value+'"\n');
+    card.append(hd,term);$('#grid').append(card);
+    a.lines.forEach((l,i)=>timers.push(setTimeout(()=>{term.textContent+='  '+l+'\n';term.scrollTop=1e5;
+      if(i===a.lines.length-1)finish(name,card,st)},(i+1)*a.ms)));
+  });
+};
+function finish(name,card,st){
+  const a=AGENTS[name];st.className='state done';st.textContent='done';
+  const stat=el('div','stat');
+  const s1=el('span','a','+'+a.add),s2=el('span','d','−'+a.del);
+  stat.append(s1,s2,el('span','',a.secs+'s'));
+  const diff=el('div','diff');
+  a.diff.forEach(l=>{const d=el('span','ln '+(l[0]==='+'?'a':l[0]==='-'?'d':l[0]==='@'?'h':''),l);d.title='Click to comment on this line';
+    d.onclick=()=>openReview(name,card,l);diff.append(d)});
+  const act=el('div','act'),m=el('button','primary','Merge winner'),q=el('span','q','click a diff line to comment');
+  m.onclick=()=>mergeWinner(name,card);act.append(m,q);
+  card.append(stat,diff,act);
+  if([...document.querySelectorAll('.state.running')].length===0){
+    log('<b>all agents finished</b>');
+    log('git worktree list &nbsp;→&nbsp; '+[...sel].map(n=>'orca/'+n).join(', '));
+  }
+}
+function openReview(name,card,line){
+  card.querySelector('.rev')?.remove();
+  const r=el('div','rev'),i=el('input');i.placeholder='Comment on: '+line.slice(0,40);i.setAttribute('aria-label','Review comment');
+  const b=el('button','','Send to agent');
+  b.onclick=()=>{if(!i.value.trim())return;
+    const n=el('p','note','→ '+name+': '+i.value.trim()+'  ('+line.trim().slice(0,32)+')');
+    card.insertBefore(n,card.querySelector('.act'));
+    const term=card.querySelector('.term');term.textContent+='\n[review] '+i.value.trim()+'\n  acknowledged, revising…\n';term.scrollTop=1e5;
+    log(`steer ${name}: "${i.value.trim()}"`);r.remove()};
+  r.append(i,b);card.insertBefore(r,card.querySelector('.act'));i.focus();
+}
+function mergeWinner(name,card){
+  if(merged)return;merged=name;
+  document.querySelectorAll('.card').forEach(c=>{if(c!==card){const s=c.querySelector('.state');if(s&&s.textContent==='done'){s.className='state';s.textContent='discarded'}}c.querySelectorAll('button').forEach(b=>b.disabled=true)});
+  card.classList.add('win');const s=card.querySelector('.state');s.className='state merged';s.textContent='merged';
+  log(`git merge --no-ff orca/${name}-… &nbsp;→&nbsp; <b>main</b> now contains ${name}'s changes`);
+  log('git worktree remove (others) · branches kept for review');
+}
+</script>
+</body></html>

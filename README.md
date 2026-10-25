@@ -10,6 +10,8 @@ Run multiple AI coding agents side-by-side, each in its own isolated git worktre
 | CLI | `src/cli/orca-cli.ts` |
 | Dashboard (live output, line-level review comments, merge) | `src/renderer/index.html` |
 
+The simulated demo lives in `docs/index.html` (serve it with GitHub Pages: Settings → Pages → Deploy from a branch → `/docs`).
+
 ## Usage
 ```sh
 pnpm install
