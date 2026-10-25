@@ -3,7 +3,9 @@ import { EventEmitter } from 'node:events';
 import { WorktreeManager, type Worktree } from './worktree-manager.js';
 
 /** How each supported agent CLI accepts a one-shot prompt. */
-export const AGENTS: Record<string, { cmd: string; args: (prompt: string) => string[] }> = {
+export type Registry = Record<string, { cmd: string; args: (prompt: string) => string[] }>;
+
+export const AGENTS: Registry = {
   'claude-code': { cmd: 'claude', args: (p) => ['-p', p] },
   codex: { cmd: 'codex', args: (p) => ['exec', p] },
   opencode: { cmd: 'opencode', args: (p) => ['run', p] },
@@ -16,22 +18,58 @@ export type AgentEvent =
   | { type: 'data'; worktree: Worktree; stream: 'stdout' | 'stderr'; chunk: string }
   | { type: 'exit'; worktree: Worktree; code: number | null; durationMs: number };
 
+export interface RunResult {
+  worktree: Worktree;
+  prompt: string;
+  code: number | null;
+  durationMs: number;
+  output: string;
+}
+
 export class Orchestrator extends EventEmitter {
   private procs = new Map<string, ChildProcess>();
   readonly manager: WorktreeManager;
 
-  constructor(repo: string, private registry = AGENTS) {
+  constructor(repo: string, readonly registry: Registry = AGENTS) {
     super();
     this.manager = new WorktreeManager(repo);
   }
 
   /** Fan one prompt out to every agent, each in its own worktree. */
-  async fanout(agents: string[], prompt: string): Promise<Worktree[]> {
+  async fanout(agents: string[], prompt: string, opts: { label?: string } = {}): Promise<Worktree[]> {
     const unknown = agents.filter((a) => !this.registry[a]);
     if (unknown.length) throw new Error(`Unknown agent(s): ${unknown.join(', ')}`);
-    const worktrees = await Promise.all(agents.map((a) => this.manager.create(a, prompt)));
+    const worktrees = await Promise.all(agents.map((a) => this.manager.create(a, opts.label ?? prompt)));
     worktrees.forEach((wt) => this.launch(wt, prompt));
     return worktrees;
+  }
+
+  /** Fan out and wait until every agent has exited, collecting each one's output. */
+  async runAll(agents: string[], prompt: string, opts: { label?: string } = {}): Promise<RunResult[]> {
+    const output = new Map<string, string>();
+    const finished = new Map<string, RunResult>();
+    let expected = -1;
+    let release!: () => void;
+    const all = new Promise<void>((r) => { release = r; });
+    const check = () => { if (expected >= 0 && finished.size >= expected) release(); };
+    const onEvent = (e: AgentEvent) => {
+      const key = e.worktree.branch;
+      if (e.type === 'data') output.set(key, (output.get(key) ?? '') + e.chunk);
+      if (e.type === 'exit') {
+        finished.set(key, { worktree: e.worktree, prompt, code: e.code, durationMs: e.durationMs, output: output.get(key) ?? '' });
+        check();
+      }
+    };
+    this.on('event', onEvent);
+    try {
+      const wts = await this.fanout(agents, prompt, opts);
+      expected = wts.length;
+      check();
+      await all;
+      return wts.map((w) => finished.get(w.branch)!);
+    } finally {
+      this.off('event', onEvent);
+    }
   }
 
   private launch(wt: Worktree, prompt: string) {

@@ -28,12 +28,25 @@ export class WorktreeManager {
 
   /** Create an isolated worktree on branch orca/<agent>-<task>. */
   async create(agent: string, task: string): Promise<Worktree> {
-    const name = `${slug(agent)}-${slug(task)}`;
+    const base = `${slug(agent)}-${slug(task)}`;
+    let name = base;
+    for (let n = 2; await this.branchExists(`orca/${name}`); n++) name = `${base}-${n}`;
     const branch = `orca/${name}`;
     const dir = path.join(this.root, name);
     await fs.mkdir(this.root, { recursive: true });
     await git(this.repo, 'worktree', 'add', '-b', branch, dir);
     return { agent, task, branch, dir, repo: this.repo };
+  }
+
+  private async branchExists(branch: string): Promise<boolean> {
+    try { await git(this.repo, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`); return true; }
+    catch { return false; }
+  }
+
+  /** Use the repo's own git identity when set, so commits are the user's; fall back to "orca". */
+  private async identity(cwd: string): Promise<string[]> {
+    try { if ((await git(cwd, 'config', 'user.name')).trim()) return []; } catch { /* unset */ }
+    return ['-c', 'user.name=orca', '-c', 'user.email=orca@localhost'];
   }
 
   async list(): Promise<Worktree[]> {
@@ -70,19 +83,26 @@ export class WorktreeManager {
     return git(wt.dir, 'diff', '--cached', 'HEAD');
   }
 
-  /** Commit the agent's work and merge its branch into the base branch of the main checkout. */
-  async merge(wt: Worktree, message = `orca: merge ${wt.branch}`): Promise<void> {
+  /** Commit everything in the worktree. Returns false when there was nothing to commit. */
+  async commit(wt: Worktree, message = `orca: ${wt.branch}`): Promise<boolean> {
     await this.stage(wt);
-    const dirty = (await git(wt.dir, 'status', '--porcelain')).trim();
-    if (dirty) {
-      await git(wt.dir, '-c', 'user.name=orca', '-c', 'user.email=orca@localhost', 'commit', '-m', message);
-    }
-    await git(this.repo, '-c', 'user.name=orca', '-c', 'user.email=orca@localhost',
-      'merge', '--no-ff', '-m', message, wt.branch);
+    if (!(await git(wt.dir, 'status', '--porcelain')).trim()) return false;
+    await git(wt.dir, ...(await this.identity(wt.dir)), 'commit', '-m', message);
+    return true;
   }
 
-  async remove(wt: Worktree): Promise<void> {
+  /** Commit the agent's work and merge its branch into the base branch of the main checkout. */
+  async merge(wt: Worktree, message = `orca: merge ${wt.branch}`): Promise<void> {
+    await this.commit(wt, message);
+    await git(this.repo, ...(await this.identity(this.repo)), 'merge', '--no-ff', '-m', message, wt.branch);
+  }
+
+  async push(wt: Worktree): Promise<void> {
+    await git(this.repo, 'push', '-u', 'origin', wt.branch);
+  }
+
+  async remove(wt: Worktree, opts: { keepBranch?: boolean } = {}): Promise<void> {
     await git(this.repo, 'worktree', 'remove', '--force', wt.dir);
-    await git(this.repo, 'branch', '-D', wt.branch);
+    if (!opts.keepBranch) await git(this.repo, 'branch', '-D', wt.branch);
   }
 }
