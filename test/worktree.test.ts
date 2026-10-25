@@ -48,12 +48,12 @@ test('fanout runs agents in separate worktrees', async () => {
   assert.ok(!fs.existsSync(path.join(repo, 'out.txt')));
 });
 
-test('relay rejects connections without the token', async () => {
+test('relay rejects connections without the token and serves the phone page', async () => {
   const { WebSocket } = await import('ws');
   const { startRelay } = await import('../src/main/relay-server.ts');
-  const wss = startRelay(new Orchestrator(tmpRepo(), {}), 0, '127.0.0.1', 's3cret');
-  await new Promise((r) => wss.on('listening', r));
-  const port = (wss.address() as { port: number }).port;
+  const relay = startRelay(new Orchestrator(tmpRepo(), {}), 0, '127.0.0.1', 's3cret');
+  await new Promise((r) => relay.server.on('listening', r));
+  const port = (relay.server.address() as { port: number }).port;
   const open = (q: string) => new Promise<boolean>((res) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/${q}`);
     ws.on('open', () => { ws.close(); res(true); });
@@ -62,5 +62,9 @@ test('relay rejects connections without the token', async () => {
   assert.equal(await open(''), false);
   assert.equal(await open('?token=wrong'), false);
   assert.equal(await open('?token=s3cret'), true);
-  wss.close();
+  const page = await fetch(`http://127.0.0.1:${port}/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /NexusOrca/);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/nope`)).status, 404);
+  relay.close();
 });

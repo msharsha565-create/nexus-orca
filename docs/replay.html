@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NexusOrca Replay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f3f5f7;--panel:#fff;--ink:#16202b;--muted:#5d6b7a;--line:#d5dce3;--accent:#0b7a75;--term:#0f1a22;--term-ink:#b9e0d8}
+@media(prefers-color-scheme:dark){:root{--bg:#0c1319;--panel:#131d26;--ink:#e3ebf0;--muted:#8a9aa8;--line:#243340;--accent:#3fc7bd;--term:#080e13;--term-ink:#a6d9cf}}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui;padding:16px}
+main{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+h1{font-size:22px;margin:0}p{color:var(--muted);margin:4px 0 0}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}
+.bar input[type=range]{flex:1;min-width:160px}
+button,input[type=file]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+button{cursor:pointer}#t{font:13px ui-monospace,monospace;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0}
+.card h3{margin:0;padding:8px 12px;border-bottom:1px solid var(--line);font:600 13px ui-monospace,monospace;overflow-wrap:anywhere}
+pre{margin:0;height:220px;overflow:auto;background:var(--term);color:var(--term-ink);padding:10px 12px;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;border-radius:0 0 8px 8px}
+</style></head><body><main>
+<h1>NexusOrca Replay</h1>
+<p id="src">Showing a built-in sample run. Record your own with <code>orca fanout --record</code>, then load the .jsonl file here.</p>
+<div class="bar"><button id="play">Play</button><input id="seek" type="range" min="0" max="100" value="0" aria-label="Scrub"><span id="t">0.0s</span>
+<input id="file" type="file" accept=".jsonl" aria-label="Load recording"></div>
+<div class="grid" id="grid"></div>
+<script>
+const $=s=>document.querySelector(s);
+let frames=[],t0=0,span=1,timer=null;
+const sample=()=>{const a=1e6,rows=[];const add=(dt,agent,type,extra={})=>rows.push({at:a+dt,type,branch:'orca/'+agent+'-demo',agent,...extra});
+ add(0,'claude-code','start');add(0,'codex','start');
+ [[600,'claude-code','reading src/signup.ts'],[1500,'claude-code','adding schema'],[2600,'claude-code','pnpm test … 14 passed'],
+  [500,'codex','editing src/signup.ts'],[1400,'codex','done']].forEach(([dt,ag,c])=>add(dt,ag,'data',{stream:'stdout',chunk:c+'\n'}));
+ add(1500,'codex','exit',{code:0,durationMs:1500});add(2900,'claude-code','exit',{code:0,durationMs:2900});
+ return rows.sort((x,y)=>x.at-y.at)};
+function load(f){frames=f;t0=f[0].at;span=Math.max(1,f.at(-1).at-t0);$('#seek').value=0;render(0)}
+function render(ms){const cards={};$('#grid').replaceChildren();
+ for(const f of frames){if(f.at-t0>ms)break;
+  let c=cards[f.branch];if(!c){const d=document.createElement('div');d.className='card';
+   d.innerHTML='<h3></h3><pre></pre>';d.firstChild.textContent=f.branch;$('#grid').append(d);c=cards[f.branch]=d.querySelector('pre')}
+  if(f.type==='data')c.textContent+=f.chunk;if(f.type==='exit')c.textContent+='\n[exit '+f.code+' after '+f.durationMs+'ms]\n'}
+ $('#t').textContent=(ms/1000).toFixed(1)+'s / '+(span/1000).toFixed(1)+'s'}
+$('#seek').oninput=e=>render(span*e.target.value/100);
+$('#play').onclick=()=>{if(timer){clearInterval(timer);timer=null;$('#play').textContent='Play';return}
+ if(+$('#seek').value>=100)$('#seek').value=0;$('#play').textContent='Pause';
+ timer=setInterval(()=>{const s=$('#seek');s.value=Math.min(100,+s.value+100*50/span);render(span*s.value/100);
+  if(+s.value>=100){clearInterval(timer);timer=null;$('#play').textContent='Play'}},50)};
+$('#file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{load((await f.text()).split('\n').filter(Boolean).map(l=>JSON.parse(l)));$('#src').textContent='Loaded '+f.name}
+ catch{$('#src').textContent='That file is not a NexusOrca recording.'}};
+load(sample());render(span);$('#seek').value=100;
+</script></main></body></html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NexusOrca</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f3f5f7;--panel:#fff;--ink:#16202b;--muted:#5d6b7a;--line:#d5dce3;--accent:#0b7a75;--add:#0f5c2e;--del:#8c2020}
+@media(prefers-color-scheme:dark){:root{--bg:#0c1319;--panel:#131d26;--ink:#e3ebf0;--muted:#8a9aa8;--line:#243340;--accent:#3fc7bd;--add:#8fe0aa;--del:#f0a0a0}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui;padding:16px;max-width:560px;margin-inline:auto}
+h1{font-size:20px;margin:0 0 12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px}
+.card code{font:12px ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+input,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+input{flex:1;min-width:0}button{cursor:pointer}button.go{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button.danger{border-color:var(--del);color:var(--del)}
+pre{font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;overflow-x:auto;margin:8px 0 0}
+.a{color:var(--add)}.d{color:var(--del)}#st{color:var(--muted);font-size:13px}
+</style></head><body>
+<h1>NexusOrca <span id="st">connecting…</span></h1>
+<div class="card"><input id="prompt" placeholder="Prompt for all agents" aria-label="Prompt">
+<div class="row"><input id="agents" value="claude-code,codex" aria-label="Agents"><button class="go" id="go">Fan out</button></div></div>
+<div id="list"></div>
+<script>
+const $=s=>document.querySelector(s);
+const token=new URLSearchParams(location.search).get('token')||'';
+const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/?token='+encodeURIComponent(token));
+const pend=new Map();let seq=0;
+const rpc=(method,params)=>new Promise((res,rej)=>{const id=++seq;pend.set(id,{res,rej});ws.send(JSON.stringify({id,method,params}))});
+ws.onopen=()=>{$('#st').textContent='connected';refresh()};
+ws.onclose=()=>{$('#st').textContent='disconnected (check the token)'};
+ws.onmessage=({data})=>{const m=JSON.parse(data);
+  if(m.id&&pend.has(m.id)){const p=pend.get(m.id);pend.delete(m.id);m.error?p.rej(new Error(m.error)):p.res(m.result);return}
+  if(m.event==='exit')refresh()};
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+async function refresh(){const l=await rpc('list');$('#list').replaceChildren(...l.map(card));
+  if(!l.length)$('#list').append(el('p','', 'No worktrees yet.'))}
+function card(w){const c=el('div','card'),code=el('code','',w.branch),out=el('pre'),row=el('div','row');
+  const bs=el('button','','Changes'),bm=el('button','danger','Merge');let armed=false;
+  bs.onclick=async()=>{const s=await rpc('stats',{branch:w.branch});out.replaceChildren();
+    s.forEach(f=>{const d=el('div');d.append(el('span','a','+'+f.added+' '),el('span','d','-'+f.removed+' '),document.createTextNode(f.file));out.append(d)});
+    if(!s.length)out.textContent='No changes yet.'};
+  bm.onclick=async()=>{if(!armed){armed=true;bm.textContent='Tap again to merge into main';return}
+    try{await rpc('merge',{branch:w.branch});bm.textContent='Merged';bm.disabled=true}catch(e){out.textContent=e.message}};
+  row.append(bs,bm);c.append(code,row,out);return c}
+$('#go').onclick=()=>rpc('fanout',{agents:$('#agents').value.split(',').map(s=>s.trim()),prompt:$('#prompt').value}).then(refresh).catch(e=>{$('#st').textContent=e.message});
+</script></body></html>
