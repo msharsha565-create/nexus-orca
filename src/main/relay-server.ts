@@ -1,11 +1,30 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Orchestrator, type AgentEvent } from './pty-orchestrator.js';
 
 interface Request { id?: number; method: string; params?: any }
 
 /** JSON-RPC-ish WebSocket relay so a companion client can steer worktrees. */
-export function startRelay(orch: Orchestrator, port = 7420, host = '127.0.0.1') {
-  const wss = new WebSocketServer({ port, host });
+export function startRelay(
+  orch: Orchestrator,
+  port = 7420,
+  host = '127.0.0.1',
+  token = process.env.ORCA_TOKEN ?? randomBytes(24).toString('hex'),
+) {
+  const wss = new WebSocketServer({
+    port,
+    host,
+    // Reject clients without the shared token (?token=...) before the upgrade completes.
+    verifyClient: ({ req }: { req: IncomingMessage }) => {
+      const given = new URL(req.url ?? '/', 'http://x').searchParams.get('token') ?? '';
+      const a = Buffer.from(given);
+      const b = Buffer.from(token);
+      return a.length === b.length && timingSafeEqual(a, b);
+    },
+    maxPayload: 1024 * 1024,
+  });
+  (wss as WebSocketServer & { token: string }).token = token;
   const broadcast = (msg: unknown) => {
     const s = JSON.stringify(msg);
     wss.clients.forEach((c) => c.readyState === c.OPEN && c.send(s));

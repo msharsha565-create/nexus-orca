@@ -47,3 +47,20 @@ test('fanout runs agents in separate worktrees', async () => {
   assert.equal(fs.readFileSync(path.join(wts[1].dir, 'out.txt'), 'utf8'), 'two\n');
   assert.ok(!fs.existsSync(path.join(repo, 'out.txt')));
 });
+
+test('relay rejects connections without the token', async () => {
+  const { WebSocket } = await import('ws');
+  const { startRelay } = await import('../src/main/relay-server.ts');
+  const wss = startRelay(new Orchestrator(tmpRepo(), {}), 0, '127.0.0.1', 's3cret');
+  await new Promise((r) => wss.on('listening', r));
+  const port = (wss.address() as { port: number }).port;
+  const open = (q: string) => new Promise<boolean>((res) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/${q}`);
+    ws.on('open', () => { ws.close(); res(true); });
+    ws.on('error', () => res(false));
+  });
+  assert.equal(await open(''), false);
+  assert.equal(await open('?token=wrong'), false);
+  assert.equal(await open('?token=s3cret'), true);
+  wss.close();
+});

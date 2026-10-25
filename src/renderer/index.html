@@ -23,7 +23,8 @@ pre{margin:0;padding:8px 12px;height:200px;overflow:auto;font:12px ui-monospace,
 </header>
 <div id="grid"></div>
 <script>
-const ws=new WebSocket('ws://127.0.0.1:7420'),$=s=>document.querySelector(s);
+const token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
+const ws=new WebSocket('ws://127.0.0.1:7420/?token='+encodeURIComponent(token)),$=s=>document.querySelector(s);
 const pending=new Map();let seq=0;const cards={};
 const rpc=(method,params)=>new Promise((res,rej)=>{const id=++seq;pending.set(id,{res,rej});ws.send(JSON.stringify({id,method,params}))});
 ws.onopen=()=>{$('#status').textContent='connected';rpc('list').then(l=>l.forEach(card))};

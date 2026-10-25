@@ -21,4 +21,4 @@ pnpm cli list --repo .
 Agent CLIs must be installed and on `PATH`; flags per agent are in `AGENTS` (edit to taste). Agents run as plain child processes (no PTY), so interactive TUIs are not supported; use their non-interactive modes.
 
 ## Security
-The relay has no authentication and binds to localhost only. Do not expose it to a network without adding auth.
+The relay binds to localhost and requires a shared token. `pnpm dev` prints a dashboard URL containing a random token; set `ORCA_TOKEN` to choose your own. Connections without the token are rejected. Anyone holding the token can run agents and merge branches, so keep it secret and do not expose the port to a network.
