@@ -10,7 +10,7 @@ Run multiple AI coding agents side-by-side, each in its own isolated git worktre
 | CLI | `src/cli/orca-cli.ts` |
 | Dashboard (live output, line-level review comments, merge) | `src/renderer/index.html` |
 
-The simulated demo lives in `docs/index.html`; a replay viewer is in `docs/replay.html` (both are served by GitHub Pages).
+The simulated demo lives in `docs/index.html`; an X-ray anatomy view of how it works is in `docs/xray.html`; a replay viewer is in `docs/replay.html` (all served by GitHub Pages).
 
 ## Usage
 ```sh

@@ -1,0 +1,304 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}[hidden]{display:none!important}</style>
+<title>NexusOrca X-Ray</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Concept: a radiograph. Near-black film, bone drawn in pale cyan light, data travels as bright pulses.
+   One committed dark look; amber is reserved for failures. Layout: skeleton diagram | inspector, results below. */
+:root{
+  --film:#04090d;--panel:#08131a;--line:#14303d;--bone:#cfeeff;--bone-dim:#3b6f8c;--glow:#5fd4ff;
+  --ok:#9dffd0;--warn:#ffb347;--ink:#d7ecf7;--muted:#7fa3b8;
+  --display:'Oxanium',system-ui,sans-serif;--body:'IBM Plex Sans',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
+  color-scheme:dark}
+body{background:var(--film);color:var(--ink);font-family:var(--body);padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;gap:12px 24px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap}
+h1{font:700 30px/1 var(--display);letter-spacing:.04em;margin:0;text-transform:uppercase}
+h1 span{color:var(--glow)}
+.sub{color:var(--muted);margin:6px 0 0;max-width:60ch}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select{font:500 14px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:9px 14px;cursor:pointer}
+button.scan{background:var(--glow);color:#021017;border-color:var(--glow);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--glow);outline-offset:2px}
+.stage{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+@media(max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+.film{background:radial-gradient(ellipse at 50% 30%,#0b1c27 0%,var(--film) 70%);border:1px solid var(--line);border-radius:6px;overflow-x:auto}
+svg{display:block;width:100%;min-width:620px;height:auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.panel h2{font:700 18px var(--display);letter-spacing:.05em;text-transform:uppercase;margin:0 0 6px}
+.file{font:12px var(--mono);color:var(--glow);overflow-wrap:anywhere}
+.panel p{margin:10px 0;line-height:1.5}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font:12px/1.5 var(--mono);margin:12px 0 0;border-top:1px solid var(--line);padding-top:12px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
+.sticky{position:sticky;top:12px;display:flex;flex-direction:column;gap:16px}
+.log{height:210px;overflow:auto;font:12px/1.55 var(--mono);color:var(--muted);margin:0;white-space:pre-wrap}
+.log b{color:var(--ink);font-weight:500}.log .w{color:var(--warn)}.log .g{color:var(--ok)}
+.res{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
+@media(max-width:860px){.res{grid-template-columns:minmax(0,1fr)}}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font:13px var(--mono);min-width:480px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{color:var(--muted);font-weight:400;text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+tr.win td{color:var(--ok)}tr.win td:first-child::before{content:"▸ "}
+.empty{color:var(--muted);font:13px var(--mono)}
+.how{font:12px/1.7 var(--mono);color:var(--muted);margin:0;white-space:pre-wrap}
+.how b{color:var(--ink);font-weight:500}
+/* bones */
+.node{cursor:pointer;outline:none}
+.node .bone{fill:url(#boneFill);stroke:var(--bone-dim);stroke-width:1.5;transition:stroke .3s,filter .3s}
+.node text{fill:var(--bone);font-family:var(--mono);pointer-events:none}
+.node .t{font:700 14px var(--display);letter-spacing:.05em;text-transform:uppercase}
+.node .s{font-size:11px;fill:var(--muted)}
+.node:hover .bone,.node:focus-visible .bone,.node.sel .bone{stroke:var(--glow)}
+.node.active .bone{stroke:var(--glow);filter:url(#glow)}
+.node.done .bone{stroke:var(--bone)}
+.node.fail .bone{stroke:var(--warn);filter:url(#glowWarn)}
+.node.fail .s{fill:var(--warn)}
+.node.win .bone{stroke:var(--ok);filter:url(#glowOk)}
+.node.lost{opacity:.4}
+.link{fill:none;stroke:var(--bone-dim);stroke-width:7;stroke-linecap:round;opacity:.55}
+.link.hot{stroke:var(--glow);opacity:.9;filter:url(#glow)}
+.link.dash{stroke-width:2;stroke-dasharray:4 6;opacity:.6}
+.faint{fill:none;stroke:var(--bone-dim);stroke-width:5;stroke-linecap:round;opacity:.2}
+.disc{fill:var(--bone-dim);opacity:.35}
+.pulse{fill:#fff;filter:url(#glow)}
+.beat{transform-origin:380px 718px}
+.beat.on{animation:beat 1s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}20%{transform:scale(1.25)}40%{transform:scale(1)}60%{transform:scale(1.15)}}
+@media(prefers-reduced-motion:reduce){.beat.on{animation:none}}
+</style>
+
+</head><body>
+<main>
+  <header>
+    <div>
+      <h1>Nexus<span>Orca</span> X-Ray</h1>
+      <p class="sub">See inside the tool. One prompt enters at the skull, travels down the spine, splits into one rib per agent, and ends in a score and a merge. Press Scan, then click any bone.</p>
+    </div>
+    <div class="ctl">
+      <select id="speed" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
+      <button id="reset">Reset</button>
+      <button class="scan" id="scan">Scan</button>
+    </div>
+  </header>
+
+  <section class="stage">
+    <div class="film" aria-label="Skeleton diagram of NexusOrca">
+      <svg id="svg" viewBox="0 0 760 770" role="group" aria-label="NexusOrca anatomy"></svg>
+    </div>
+    <div class="sticky">
+      <div class="panel" id="inspector" aria-live="polite"></div>
+      <div class="panel"><pre class="log" id="log" aria-label="Command trace"></pre></div>
+    </div>
+  </section>
+
+  <section class="res">
+    <div class="panel">
+      <h2>Result</h2>
+      <div class="tbl" id="board"><p class="empty">No scan yet. The leaderboard appears when every agent has finished.</p></div>
+    </div>
+    <div class="panel">
+      <h2>Run it for real</h2>
+      <pre class="how"><b>pnpm cli fanout</b> --repo ..\scratch \
+  --agents claude-code,codex \
+  --prompt "..." --test "pnpm test" --record
+
+<b>pnpm cli replay</b> file.jsonl --speed 4</pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const NS='http://www.w3.org/2000/svg',$=s=>document.querySelector(s),svg=$('#svg');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const PROMPT='add input validation to the signup form';
+
+/* ---- the three simulated agents (numbers feed the real scoring formula) ---- */
+const AG=[
+ {id:'claude-code',cmd:'claude -p',x:130,ms:6200,add:31,del:4,pass:true,testMsg:'14 passed',
+  lines:['reading src/signup.ts','found form handler, line 12','adding zod schema','updating tests','pnpm test … 14 passed']},
+ {id:'codex',cmd:'codex exec',x:380,ms:3800,add:6,del:0,pass:true,testMsg:'12 passed',
+  lines:['plan: validate in handler','editing src/signup.ts','done']},
+ {id:'opencode',cmd:'opencode run',x:630,ms:8900,add:48,del:2,pass:false,testMsg:'1 failed',
+  lines:['scanning repo','creating src/validate.ts','wiring validate() into submit','adding 3 test cases','pnpm test … 1 failed']}
+];
+AG.forEach(a=>{a.branch='orca/'+a.id+'-add-input-validation';a.state='idle';a.last='';});
+
+/* ---- node catalogue ---- */
+const N={
+ prompt:{x:380,y:62,file:'src/cli/orca-cli.ts',title:'Prompt',txt:'The skull. One sentence goes in and every agent receives exactly the same text, so the comparison is fair.'},
+ orch:{x:380,y:175,w:200,h:50,file:'src/main/pty-orchestrator.ts',title:'Orchestrator',sub:'spawns every agent',txt:'The spine. Creates one worktree per agent, starts each agent CLI as a child process, streams their output, and reports exit codes. runAll() waits until every agent has exited.'},
+ git:{x:380,y:275,w:200,h:50,file:'src/main/worktree-manager.ts',title:'Worktrees',sub:'git worktree add -b',txt:'Gives each agent its own folder and branch on the same repository, so agents never fight over the git index. Also produces diffs and does the final merge.'},
+ relay:{x:620,y:175,w:150,h:46,file:'src/main/relay-server.ts',title:'Relay',sub:'dashboard + phone',txt:'Streams every event over a WebSocket (token required) to the desktop dashboard and the phone page, and accepts commands like merge.'},
+ score:{x:380,y:620,w:230,h:46,file:'src/main/tournament.ts',title:'Scorer',sub:'tests · size · speed',txt:'The pelvis. Runs your test command in each worktree and scores out of 100: exit 0 = 20, tests pass = 60, up to 10 for the smallest diff, up to 10 for the fastest run.'},
+ merge:{x:380,y:715,file:'src/main/worktree-manager.ts',title:'Merge',txt:'The heart. Commits the winner and merges its branch into main with git merge --no-ff, using your own git identity.'}
+};
+AG.forEach(a=>{
+ N['a_'+a.id]={x:a.x,y:440,w:176,h:56,file:'src/main/pty-orchestrator.ts',title:a.id,sub:'idle',agent:a,txt:'A rib: one agent running as a child process ('+a.cmd+') inside its own worktree. Its output streams up the spine in real time.'};
+ N['w_'+a.id]={x:a.x,y:540,w:176,h:50,file:'.orca-worktrees/'+a.id+'-…',title:'worktree',sub:'waiting',agent:a,txt:'The folder this agent edited. After it exits, Orca counts the changed lines and runs your test command here.'};
+});
+
+/* ---- build the skeleton ---- */
+const el=(t,at={},p=svg,txt)=>{const e=document.createElementNS(NS,t);for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;p.append(e);return e};
+const defs=el('defs');
+defs.innerHTML=`<radialGradient id="boneFill" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#19384a"/><stop offset="1" stop-color="#08141c"/></radialGradient>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glowOk" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feFlood flood-color="#9dffd0" flood-opacity=".7"/><feComposite in2="b" operator="in" result="c"/><feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glowWarn" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feFlood flood-color="#ffb347" flood-opacity=".6"/><feComposite in2="b" operator="in" result="c"/><feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+
+/* faint decorative ribs + spine discs */
+[[322,[300,322,230,342,205,385]],[345,[310,345,240,368,222,410]]].forEach(([y,c])=>{
+  el('path',{class:'faint',d:`M380 ${y} C${c.join(' ')}`});
+  el('path',{class:'faint',d:`M380 ${y} C${760-c[0]} ${c[1]} ${760-c[2]} ${c[3]} ${760-c[4]} ${c[5]}`});});
+[213,226,239].forEach(y=>el('rect',{class:'disc',x:362,y,width:36,height:7,rx:3}));
+
+/* links (paths used by pulses) */
+const L={};
+const link=(id,d,cls='link')=>{L[id]=el('path',{class:cls,d,id:'L_'+id});return L[id]};
+link('p_o','M380 108 L380 150');
+link('o_g','M380 200 L380 250');
+link('o_r','M480 175 L545 175','link dash');
+AG.forEach(a=>{
+  const d=a.x===380?'M380 300 L380 412':`M380 300 C380 352 ${a.x} 340 ${a.x} 412`;
+  link('g_'+a.id,d);
+  link('a_'+a.id,`M${a.x} 468 L${a.x} 515`);
+  link('s_'+a.id,`M${a.x} 565 C${a.x} 592 380 576 380 597`);
+});
+link('s_m','M380 643 L380 690');
+
+/* nodes */
+const G={};
+function node(id){
+  const n=N[id],g=el('g',{class:'node',tabindex:0,role:'button','aria-label':n.title,'data-id':id});
+  if(id==='prompt'){ /* skull */
+    el('ellipse',{class:'bone',cx:380,cy:48,rx:42,ry:34},g);
+    el('rect',{class:'bone',x:362,y:74,width:36,height:20,rx:5},g);
+    el('ellipse',{cx:365,cy:50,rx:9,ry:11,fill:'#02080c'},g);el('ellipse',{cx:395,cy:50,rx:9,ry:11,fill:'#02080c'},g);
+    el('path',{d:'M380 60 L374 72 L386 72 Z',fill:'#02080c'},g);
+    [368,376,384,392].forEach(x=>el('line',{x1:x,y1:80,x2:x,y2:90,stroke:'#02080c','stroke-width':2},g));
+    el('text',{class:'s',x:380,y:106,'text-anchor':'middle'},g,'PROMPT');
+  }else if(id==='merge'){
+    const h=el('g',{class:'beat'},g);G.beat=h;
+    el('path',{class:'bone',d:'M380 738 C340 712 350 688 372 692 C378 693 380 698 380 698 C380 698 382 693 388 692 C410 688 420 712 380 738 Z'},h);
+    el('text',{class:'t',x:380,y:762,'text-anchor':'middle'},g,'Merge → main');
+  }else{
+    el('rect',{class:'bone',x:n.x-n.w/2,y:n.y-n.h/2,width:n.w,height:n.h,rx:n.h/2.6},g);
+    el('text',{class:'t',x:n.x,y:n.y-(n.sub?3:-5),'text-anchor':'middle'},g,n.title);
+    if(n.sub)G[id+'_s']=el('text',{class:'s',x:n.x,y:n.y+14,'text-anchor':'middle'},g,n.sub);
+  }
+  g.addEventListener('click',()=>select(id));
+  g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(id)}});
+  G[id]=g;return g;
+}
+['relay','orch','git','prompt'].forEach(node);
+AG.forEach(a=>{node('a_'+a.id);node('w_'+a.id)});
+node('score');node('merge');
+
+const setSub=(id,t)=>{const s=G[id+'_s'];if(s)s.textContent=t.length>26?t.slice(0,25)+'…':t};
+const cls=(id,c)=>{G[id].classList.remove('active','done','fail','win','lost');if(c)G[id].classList.add(c)};
+
+/* ---- inspector ---- */
+let sel=null;
+function select(id){
+  sel=id;document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel',n.dataset.id===id));renderInspector();
+}
+function renderInspector(){
+  const box=$('#inspector');
+  if(!sel){box.innerHTML=`<h2>Inspector</h2><p>Click any bone to see which file it is, what it does and what it is doing right now.</p><p class="empty">Pale outline = idle · bright = working · white = finished · amber = failed · green = winner.</p>`;return}
+  const n=N[sel],kv=[];
+  if(n.agent){const a=n.agent;
+    if(sel.startsWith('a_')){kv.push(['command',a.cmd+' "'+PROMPT.slice(0,22)+'…"'],['status',a.state],['last line',a.last||'-']);}
+    else kv.push(['branch',a.branch],['folder','.orca-worktrees/'+a.id+'-…'],['changed',a.done?`+${a.add} −${a.del} lines`:'-'],['tests',a.tested?a.testMsg:'-']);}
+  if(sel==='score')kv.push(['formula','20 exit + 60 tests + 10 size + 10 speed'],['winner',RES.winner||'-']);
+  if(sel==='merge')kv.push(['command',RES.winner?`git merge --no-ff ${RES.winner}`:'-']);
+  box.innerHTML=`<h2></h2><div class="file"></div><p></p><dl class="kv"></dl>`;
+  box.querySelector('h2').textContent=n.title;box.querySelector('.file').textContent=n.file;box.querySelector('p').textContent=n.txt;
+  const dl=box.querySelector('dl');if(!kv.length)dl.remove();
+  kv.forEach(([k,v])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dl.append(dt,dd)});
+}
+
+/* ---- pulses ---- */
+const pulses=[];let speed=1;
+function pulse(linkId,dur=600,r=5){
+  const path=L[linkId];L[linkId].classList.add('hot');
+  setTimeout(()=>path.classList.remove('hot'),dur/speed+150);
+  if(reduce)return;
+  const c=el('circle',{class:'pulse',r}),len=path.getTotalLength();
+  pulses.push({c,path,len,t0:performance.now(),dur:dur/speed});
+}
+(function frame(now){
+  for(let i=pulses.length-1;i>=0;i--){const p=pulses[i],k=(now-p.t0)/p.dur;
+    if(k>=1){p.c.remove();pulses.splice(i,1);continue}
+    const pt=p.path.getPointAtLength(p.len*k);p.c.setAttribute('cx',pt.x);p.c.setAttribute('cy',pt.y)}
+  requestAnimationFrame(frame)})(performance.now());
+
+/* ---- trace log ---- */
+let runStart=0;
+function log(t,c=''){const l=$('#log'),s=((performance.now()-runStart)*speed/1000).toFixed(1).padStart(4,' ');
+  const span=document.createElement('span');if(c)span.className=c;span.textContent=`${s}s  ${t}\n`;l.append(span);l.scrollTop=1e5}
+
+/* ---- scoring (same formula as src/main/tournament.ts) ---- */
+function scoreAll(runs){
+  const ok=runs.filter(r=>r.ok&&r.changed>0),minC=Math.min(...ok.map(r=>r.changed)),minM=Math.min(...ok.map(r=>r.ms));
+  return runs.map(r=>{let s=(r.ok?20:0)+(r.pass?60:0);if(r.ok&&r.changed>0)s+=10*minC/r.changed+10*minM/r.ms;return{...r,score:Math.round(s*10)/10}})
+}
+const RES={};
+let timers=[];
+const at=(ms,fn)=>timers.push(setTimeout(fn,ms/speed));
+
+function reset(){
+  timers.forEach(clearTimeout);timers=[];pulses.splice(0).forEach(p=>p.c.remove());
+  Object.keys(L).forEach(k=>L[k].classList.remove('hot'));
+  ['prompt','orch','git','relay','score','merge'].forEach(i=>cls(i,null));
+  G.beat.classList.remove('on');
+  AG.forEach(a=>{Object.assign(a,{state:'idle',last:'',done:false,tested:false});
+    cls('a_'+a.id,null);cls('w_'+a.id,null);setSub('a_'+a.id,'idle');setSub('w_'+a.id,'waiting')});
+  Object.keys(RES).forEach(k=>delete RES[k]);
+  $('#log').textContent='';$('#board').innerHTML='<p class="empty">No scan yet. The leaderboard appears when every agent has finished.</p>';
+  $('#scan').disabled=false;renderInspector();
+}
+
+function scan(){
+  reset();speed=+$('#speed').value;$('#scan').disabled=true;runStart=performance.now();
+  log(`$ orca fanout --agents ${AG.map(a=>a.id).join(',')} --test "pnpm test"`,'');
+  cls('prompt','active');pulse('p_o',600);
+  at(650,()=>{cls('prompt','done');cls('orch','active');log('orchestrator: creating one worktree per agent');pulse('o_g',500)});
+  at(1150,()=>{cls('orch','done');cls('git','active');
+    AG.forEach(a=>{log(`git worktree add -b ${a.branch}`);pulse('g_'+a.id,700)})});
+  const T0=1900;
+  at(T0-100,()=>{cls('git','done');pulse('o_r',400);cls('relay','active')});
+  AG.forEach(a=>{
+    at(T0,()=>{a.state='running';cls('a_'+a.id,'active');setSub('a_'+a.id,'running…');log(`[${a.id}] started: ${a.cmd}`);renderInspector()});
+    a.lines.forEach((l,i)=>at(T0+(i+1)*a.ms/(a.lines.length+1),()=>{
+      a.last=l;setSub('a_'+a.id,l);pulse('g_'+a.id,500,3.5);pulse('o_r',300,3);log(`[${a.id}] ${l}`);renderInspector()}));
+    at(T0+a.ms,()=>{a.done=true;a.state='exited 0';cls('a_'+a.id,'done');setSub('a_'+a.id,'exited 0');
+      cls('w_'+a.id,'active');setSub('w_'+a.id,`+${a.add} −${a.del} · testing…`);pulse('a_'+a.id,400);
+      log(`[${a.id}] exit 0 · +${a.add} −${a.del} lines`);renderInspector()});
+    at(T0+a.ms+900,()=>{a.tested=true;setSub('w_'+a.id,`+${a.add} −${a.del} · tests ${a.pass?'✓':'✗'}`);
+      cls('w_'+a.id,a.pass?'done':'fail');if(!a.pass)cls('a_'+a.id,'fail');
+      log(`pnpm test in ${a.id}: ${a.testMsg}`,a.pass?'g':'w');renderInspector()});
+  });
+  const tEnd=T0+Math.max(...AG.map(a=>a.ms))+900+700;
+  at(tEnd,()=>{cls('relay','done');cls('score','active');AG.forEach(a=>pulse('s_'+a.id,700));log('scoring…');
+    const runs=scoreAll(AG.map(a=>({id:a.id,branch:a.branch,ok:true,pass:a.pass,changed:a.add+a.del,ms:a.ms,add:a.add,del:a.del,testMsg:a.testMsg})));
+    runs.sort((x,y)=>y.score-x.score);RES.runs=runs;RES.winner=runs.find(r=>r.pass).branch;renderBoard();
+    runs.forEach(r=>log(`${r.id}: score ${r.score}`,r.pass?'g':'w'));renderInspector()});
+  at(tEnd+1000,()=>{const w=RES.runs.find(r=>r.pass);cls('score','done');
+    AG.forEach(a=>{const win=a.id===w.id;cls('w_'+a.id,win?'win':'lost');cls('a_'+a.id,win?'win':'lost')});
+    pulse('s_m',700,6);log(`git merge --no-ff ${w.branch}`,'g');renderBoard();renderInspector()});
+  at(tEnd+1700,()=>{cls('merge','win');G.beat.classList.add('on');log('main now contains '+RES.runs.find(r=>r.pass).id+'’s change. Other branches kept for review.','g');
+    $('#scan').disabled=false;renderInspector()});
+}
+function renderBoard(){
+  const done=RES.winner&&G.merge.classList.contains('win');
+  let h='<table><thead><tr><th>agent</th><th>tests</th><th>lines</th><th>time</th><th>est. cost</th><th>score</th></tr></thead><tbody>';
+  RES.runs.forEach(r=>{const isW=r.branch===RES.winner;
+    h+=`<tr class="${isW?'win':''}"><td>${r.id}</td><td>${r.testMsg}</td><td>+${r.add} −${r.del}</td><td>${(r.ms/1000).toFixed(1)}s</td><td>&lt;$0.01</td><td>${r.score}</td></tr>`});
+  $('#board').innerHTML=h+'</tbody></table>';
+}
+$('#scan').onclick=scan;$('#reset').onclick=reset;
+$('#speed').onchange=()=>{speed=+$('#speed').value};
+renderInspector();
+</script>
+</body></html>
