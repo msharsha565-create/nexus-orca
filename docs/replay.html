@@ -8,7 +8,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui;padding:
 main{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 h1{font-size:22px;margin:0}p{color:var(--muted);margin:4px 0 0}
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}
-.bar input[type=range]{flex:1;min-width:160px}
+.bar input[type=range]{flex:1;min-width:160px;height:36px;accent-color:var(--accent);cursor:pointer;touch-action:pan-y}
+.bar button{min-width:40px;min-height:36px}
 button,input[type=file]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
 button{cursor:pointer}#t{font:13px ui-monospace,monospace;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
@@ -18,7 +19,7 @@ pre{margin:0;height:220px;overflow:auto;background:var(--term);color:var(--term-
 </style></head><body><main>
 <h1>NexusOrca Replay</h1>
 <p id="src">Showing a built-in sample run. Record your own with <code>orca fanout --record</code>, then load the .jsonl file here.</p>
-<div class="bar"><button id="play">Play</button><input id="seek" type="range" min="0" max="100" value="0" aria-label="Scrub"><span id="t">0.0s</span>
+<div class="bar"><button id="play">Play</button><button id="start" aria-label="Jump to start">⏮</button><button id="back" aria-label="Back half a second">◀</button><input id="seek" type="range" min="0" max="100" value="0" aria-label="Scrub"><button id="fwd" aria-label="Forward half a second">▶</button><button id="end" aria-label="Jump to end">⏭</button><span id="t">0.0s</span>
 <input id="file" type="file" accept=".jsonl" aria-label="Load recording"></div>
 <div class="grid" id="grid"></div>
 <script>
@@ -37,6 +38,9 @@ function render(ms){const cards={};$('#grid').replaceChildren();
    d.innerHTML='<h3></h3><pre></pre>';d.firstChild.textContent=f.branch;$('#grid').append(d);c=cards[f.branch]=d.querySelector('pre')}
   if(f.type==='data')c.textContent+=f.chunk;if(f.type==='exit')c.textContent+='\n[exit '+f.code+' after '+f.durationMs+'ms]\n'}
  $('#t').textContent=(ms/1000).toFixed(1)+'s / '+(span/1000).toFixed(1)+'s'}
+const goto=ms=>{const v=Math.max(0,Math.min(100,100*ms/span));$('#seek').value=v;render(span*v/100)};
+const now=()=>span*$('#seek').value/100;
+$('#start').onclick=()=>goto(0);$('#end').onclick=()=>goto(span);$('#back').onclick=()=>goto(now()-500);$('#fwd').onclick=()=>goto(now()+500);
 $('#seek').oninput=e=>render(span*e.target.value/100);
 $('#play').onclick=()=>{if(timer){clearInterval(timer);timer=null;$('#play').textContent='Play';return}
  if(+$('#seek').value>=100)$('#seek').value=0;$('#play').textContent='Pause';
